@@ -44,6 +44,20 @@ app.get('/jobs', async (req, res) => {
   res.send(result);
 })
 
+app.get('/jobs/:id', async (req, res) => {
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).send({ message: 'Invalid job id' });
+  }
+
+  const job = await jobsCollection.findOne({ _id: new ObjectId(req.params.id) });
+
+  if (!job) {
+    return res.status(404).send({ message: 'Job not found' });
+  }
+
+  res.send(job);
+})
+
 app.post('/jobs', async (req, res) => {
   const job = req.body ?? {};
 
