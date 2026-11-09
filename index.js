@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 
 dotenv.config();
 
@@ -39,9 +39,40 @@ app.get('/users', async (req, res) => {
 })
 
 app.get('/jobs', async (req, res) => {
-  const cursor = jobsCollection.find({});
+  const cursor = jobsCollection.find({}).sort({ createdAt: -1 });
   const result = await cursor.toArray();
   res.send(result);
+})
+
+app.post('/jobs', async (req, res) => {
+  const job = req.body ?? {};
+
+  if (!job.jobTitle || !job.companyName) {
+    return res.status(400).send({ message: 'jobTitle and companyName are required' });
+  }
+
+  const result = await jobsCollection.insertOne({
+    ...job,
+    createdAt: new Date(),
+  });
+
+  res.status(201).send({ ...job, _id: result.insertedId });
+})
+
+app.delete('/jobs/:id', async (req, res) => {
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).send({ message: 'Invalid job id' });
+  }
+
+  const result = await jobsCollection.deleteOne({
+    _id: new ObjectId(req.params.id),
+  });
+
+  if (!result.deletedCount) {
+    return res.status(404).send({ message: 'Job not found' });
+  }
+
+  res.send({ deleted: true, _id: req.params.id });
 })
 
 app.listen(PORT, () => {
