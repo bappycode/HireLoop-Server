@@ -23,11 +23,26 @@ export async function connectToMongoDB() {
   }
 }
 
-connectToMongoDB();
+const connectedClient = await connectToMongoDB();
+const dataBase = connectedClient.db('hireloop');
+const usersCollection = dataBase.collection('user');
+const jobsCollection = dataBase.collection('jobs');
 
 app.get('/', (req, res) => {
   res.send('Hello World!');
 });
+
+app.get('/users', async (req, res) => {
+  const cursor = usersCollection.find({});
+  const users = await cursor.toArray();
+  res.send(users);
+})
+
+app.get('/jobs', async (req, res) => {
+  const cursor = jobsCollection.find({});
+  const result = await cursor.toArray();
+  res.send(result);
+})
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
