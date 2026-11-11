@@ -38,8 +38,86 @@ app.get('/users', async (req, res) => {
   res.send(users);
 })
 
+function toArray(value) {
+  if (Array.isArray(value)) return value.flatMap(toArray);
+  if (typeof value !== 'string') return [];
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function monthlySalaryExpression() {
+  const salary = {
+    $convert: {
+      input: '$minSalary',
+      to: 'double',
+      onError: null,
+      onNull: null,
+    },
+  };
+
+  return {
+    $switch: {
+      branches: [
+        {
+          case: { $eq: ['$salaryFrequency', 'per hour'] },
+          then: { $multiply: [salary, 160] },
+        },
+        {
+          case: { $eq: ['$salaryFrequency', 'per day'] },
+          then: { $multiply: [salary, 20] },
+        },
+        {
+          case: { $eq: ['$salaryFrequency', 'per year'] },
+          then: { $divide: [salary, 12] },
+        },
+      ],
+      default: salary,
+    },
+  };
+}
+
+function buildJobQuery(params) {
+  const query = {};
+  const search = typeof params.search === 'string' ? params.search.trim() : '';
+  const location = typeof params.location === 'string' ? params.location.trim() : '';
+  const category = typeof params.category === 'string' ? params.category.trim() : '';
+  const minSalary = Number(params.minSalary);
+  const types = toArray(params.type);
+
+  if (search) {
+    const pattern = new RegExp(escapeRegex(search), 'i');
+    query.$or = [{ jobTitle: pattern }, { companyName: pattern }];
+  }
+
+  if (location) {
+    query.jobLocation = new RegExp(escapeRegex(location), 'i');
+  }
+
+  if (category && category !== 'all') {
+    query.jobCategory = category;
+  }
+
+  if (types.length > 0) {
+    query.jobType = { $in: types };
+  }
+
+  if (Number.isFinite(minSalary) && minSalary > 0) {
+    query.$expr = { $gte: [monthlySalaryExpression(), minSalary] };
+  }
+
+  return query;
+}
+
 app.get('/jobs', async (req, res) => {
-  const cursor = jobsCollection.find({}).sort({ createdAt: -1 });
+  const cursor = jobsCollection
+    .find(buildJobQuery(req.query))
+    .sort({ createdAt: -1 });
   const result = await cursor.toArray();
   res.send(result);
 })
